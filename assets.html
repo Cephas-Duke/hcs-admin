@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Assets | School Office Management</title>
+  <style>
+    body { font-family: Arial; background: #f4f4f4; margin: 0; padding: 0; }
+    header { background: #0077cc; color: white; padding: 20px; text-align: center; }
+    nav { background: #f0f0f0; padding: 10px; text-align: center; }
+    nav a { margin: 0 10px; text-decoration: none; color: #0077cc; font-weight: bold; }
+    nav a:hover { text-decoration: underline; }
+    main { max-width: 1100px; margin: 30px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
+    button { margin-top: 10px; padding: 10px 15px; background: #0077cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #005fa3; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #0077cc; color: white; }
+    .tools { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    @media print {
+      .tools, form, nav, header { display: none; }
+      main { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>School Asset Register</h1>
+</header>
+
+<nav>
+  <a href="index.html">Dashboard</a>
+  <a href="students.html">Students</a>
+  <a href="receipts.html">Receipts</a>
+  <a href="expense.html">Expenses</a>
+  <a href="assets.html" style="text-decoration: underline;">Assets</a>
+  <a href="staff.html">Staff</a>
+  <a href="payroll.html" style="text-decoration: underline;">Payroll</a>
+</nav>
+
+<main>
+  <form id="assetForm">
+    <label>Item Description:</label>
+    <input type="text" id="description" required />
+    <label>Date of Acquisition:</label>
+    <input type="date" id="acquisitionDate" required />
+    <label>Serial No.:</label>
+    <input type="text" id="serialNo" />
+    <label>Supplier:</label>
+    <input type="text" id="supplier" />
+    <label>Category:</label>
+    <input type="text" id="category" required />
+    <label>Quantity:</label>
+    <input type="number" id="quantity" required oninput="updateAmount()" />
+    <label>Unit Cost (KES):</label>
+    <input type="number" id="unitCost" required oninput="updateAmount()" />
+    <label>Amount (KES):</label>
+    <input type="number" id="amount" readonly />
+    <label>Useful Life (Years):</label>
+    <input type="number" id="usefulLife" />
+    <button type="submit">Add Asset</button>
+  </form>
+
+  <div class="tools">
+    <button onclick="exportAssetsToExcel()">Export to Excel</button>
+    <button onclick="window.print()">Print</button>
+    <button onclick="backupAssets()">Backup</button>
+    <input type="file" id="restoreFile" onchange="restoreAssets(event)" />
+  </div>
+
+  <table id="assetTable">
+    <thead>
+      <tr>
+        <th>Description</th><th>Serial No</th><th>Supplier</th><th>Category</th>
+        <th>Qty</th><th>Unit Cost</th><th>Amount</th><th>Date</th><th>Life (yrs)</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</main>
+
+<script>
+let assets = JSON.parse(localStorage.getItem("assets")) || [];
+
+function updateAmount() {
+  const quantity = parseFloat(document.getElementById("quantity").value) || 0;
+  const unitCost = parseFloat(document.getElementById("unitCost").value) || 0;
+  document.getElementById("amount").value = (quantity * unitCost).toFixed(2);
+}
+
+function renderAssets() {
+  const tbody = document.querySelector("#assetTable tbody");
+  tbody.innerHTML = "";
+
+  assets.forEach((a, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${a.description}</td>
+      <td>${a.serialNo}</td>
+      <td>${a.supplier}</td>
+      <td>${a.category}</td>
+      <td>${a.quantity}</td>
+      <td>${a.unitCost.toFixed(2)}</td>
+      <td>${a.amount.toFixed(2)}</td>
+      <td>${a.acquisitionDate}</td>
+      <td>${a.usefulLife}</td>
+      <td>
+        <button onclick="editAsset(${index})">Edit</button>
+        <button onclick="deleteAsset(${index})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function editAsset(index) {
+  const a = assets[index];
+  document.getElementById("description").value = a.description;
+  document.getElementById("acquisitionDate").value = a.acquisitionDate;
+  document.getElementById("serialNo").value = a.serialNo;
+  document.getElementById("supplier").value = a.supplier;
+  document.getElementById("category").value = a.category;
+  document.getElementById("quantity").value = a.quantity;
+  document.getElementById("unitCost").value = a.unitCost;
+  document.getElementById("amount").value = a.amount;
+  document.getElementById("usefulLife").value = a.usefulLife;
+
+  assets.splice(index, 1);
+  localStorage.setItem("assets", JSON.stringify(assets));
+  renderAssets();
+}
+
+function deleteAsset(index) {
+  if (confirm("Are you sure you want to delete this asset?")) {
+    assets.splice(index, 1);
+    localStorage.setItem("assets", JSON.stringify(assets));
+    renderAssets();
+  }
+}
+
+document.getElementById("assetForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  const asset = {
+    description: document.getElementById("description").value,
+    acquisitionDate: document.getElementById("acquisitionDate").value,
+    serialNo: document.getElementById("serialNo").value,
+    supplier: document.getElementById("supplier").value,
+    category: document.getElementById("category").value,
+    quantity: parseInt(document.getElementById("quantity").value),
+    unitCost: parseFloat(document.getElementById("unitCost").value),
+    amount: parseFloat(document.getElementById("amount").value),
+    usefulLife: parseInt(document.getElementById("usefulLife").value),
+  };
+  assets.push(asset);
+  localStorage.setItem("assets", JSON.stringify(assets));
+  this.reset();
+  renderAssets();
+});
+
+function exportAssetsToExcel() {
+  let csv = "Description,Serial No,Supplier,Category,Quantity,Unit Cost,Amount,Date Acquired,Useful Life\\n";
+  assets.forEach(a => {
+    csv += `${a.description},${a.serialNo},${a.supplier},${a.category},${a.quantity},${a.unitCost},${a.amount},${a.acquisitionDate},${a.usefulLife}\\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "assets.csv";
+  a.click();
+}
+
+function backupAssets() {
+  const blob = new Blob([JSON.stringify(assets)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "assets_backup.json";
+  a.click();
+}
+
+function restoreAssets(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (Array.isArray(data)) {
+        assets = data;
+        localStorage.setItem("assets", JSON.stringify(assets));
+        renderAssets();
+      } else {
+        alert("Invalid file format.");
+      }
+    } catch {
+      alert("Failed to restore backup.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+renderAssets();
+</script>
+</body>
+</html>
+

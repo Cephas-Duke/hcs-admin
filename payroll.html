@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Payroll Module</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    header { background-color: #0074D9; color: white; padding: 1em 0; text-align: center; }
+    nav { background: #005fa3; display: flex; justify-content: center; padding: 0.5em 0; flex-wrap: wrap; }
+    nav a { color: white; text-decoration: none; margin: 5px 15px; font-weight: bold; }
+    .container { padding: 20px; }
+    table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    th { background-color: #0074D9; color: white; }
+    input[type="number"] {
+      width: 80px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      text-align: right;
+    }
+    button { padding: 5px 10px; cursor: pointer; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <header><h1>HCS Payroll Module</h1></header>
+  <nav>
+    <a href="index.html">Dashboard</a>
+    <a href="students.html">Students</a>
+    <a href="receipts.html">Receipts</a>
+    <a href="expense.html">Expenses</a>
+    <a href="assets.html">Assets</a>
+    <a href="staff.html">Staff</a>
+    <a href="payroll.html">Payroll</a>
+  </nav>
+
+  <div class="container">
+    <button onclick="downloadPayrollPDF()">Download Consolidated PDF</button>
+    <table id="payrollTable">
+      <thead>
+        <tr>
+          <th>Name</th><th>Gross Pay</th><th>PAYE</th><th>NSSF</th><th>SHIF</th><th>AHL</th><th>Advance</th>
+          <th>Total Deductions</th><th>Net Pay</th><th>NSSF - Employers</th><th>AHL - Employers</th><th>NITA</th><th>Payslip</th>
+        </tr>
+      </thead>
+      <tbody id="payrollBody"></tbody>
+    </table>
+  </div>
+
+<script>
+function recalculateRow(row) {
+  const gross = parseFloat(row.querySelector(".gross").value) || 0;
+  const paye = parseFloat(row.querySelector(".paye").value) || 0;
+  const nssf = parseFloat(row.querySelector(".nssf").value) || 0;
+  const shif = parseFloat(row.querySelector(".shif").value) || 0;
+  const ahl = parseFloat(row.querySelector(".ahl").value) || 0;
+  const advance = parseFloat(row.querySelector(".advance").value) || 0;
+
+  const total = paye + nssf + shif + ahl + advance;
+  const net = gross - total;
+  const nssfEmp = gross * 0.06;
+  const ahlEmp = gross * 0.03;
+  const nita = gross * 0.01;
+
+  row.querySelector(".total").textContent = total.toFixed(2);
+  row.querySelector(".net").textContent = net.toFixed(2);
+  row.querySelector(".nssfEmp").textContent = nssfEmp.toFixed(2);
+  row.querySelector(".ahlEmp").textContent = ahlEmp.toFixed(2);
+  row.querySelector(".nita").textContent = nita.toFixed(2);
+}
+
+function loadPayroll() {
+  const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
+  const tbody = document.getElementById("payrollBody");
+  tbody.innerHTML = "";
+
+  staffList.forEach(staff => {
+    const row = document.createElement("tr");
+    const gross = staff.salary || 0;
+    const advance = staff.advance || 0;
+
+    const paye = gross * 0.1;
+    const nssf = gross * 0.06;
+    const shif = gross * 0.025;
+    const ahl = gross * 0.03;
+
+    row.innerHTML = `
+      <td>${staff.fullName}</td>
+      <td><input class="gross" type="number" value="${gross.toFixed(2)}" /></td>
+      <td><input class="paye" type="number" value="${paye.toFixed(2)}" /></td>
+      <td><input class="nssf" type="number" value="${nssf.toFixed(2)}" /></td>
+      <td><input class="shif" type="number" value="${shif.toFixed(2)}" /></td>
+      <td><input class="ahl" type="number" value="${ahl.toFixed(2)}" /></td>
+      <td><input class="advance" type="number" value="${advance.toFixed(2)}" /></td>
+      <td class="total"></td>
+      <td class="net"></td>
+      <td class="nssfEmp"></td>
+      <td class="ahlEmp"></td>
+      <td class="nita"></td>
+      <td><button class="payslipBtn">Print</button></td>
+    `;
+
+    tbody.appendChild(row);
+    recalculateRow(row);
+
+    row.querySelectorAll("input").forEach(input => {
+      input.addEventListener("input", () => recalculateRow(row));
+    });
+
+    row.querySelector(".payslipBtn").addEventListener("click", () => {
+      const name = staff.fullName;
+      const gross = parseFloat(row.querySelector(".gross").value) || 0;
+      const paye = parseFloat(row.querySelector(".paye").value) || 0;
+      const nssf = parseFloat(row.querySelector(".nssf").value) || 0;
+      const shif = parseFloat(row.querySelector(".shif").value) || 0;
+      const ahl = parseFloat(row.querySelector(".ahl").value) || 0;
+      const advance = parseFloat(row.querySelector(".advance").value) || 0;
+      const total = paye + nssf + shif + ahl + advance;
+      const net = gross - total;
+      const nssfEmp = gross * 0.06;
+      const ahlEmp = gross * 0.03;
+      const nita = gross * 0.01;
+
+      const win = window.open("", "Payslip", "width=800,height=600");
+      win.document.write(`
+        <h2>Payslip</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Gross Pay:</strong> ${gross.toFixed(2)}</p>
+        <p><strong>PAYE:</strong> ${paye.toFixed(2)}</p>
+        <p><strong>NSSF:</strong> ${nssf.toFixed(2)}</p>
+        <p><strong>SHIF:</strong> ${shif.toFixed(2)}</p>
+        <p><strong>AHL:</strong> ${ahl.toFixed(2)}</p>
+        <p><strong>Advance:</strong> ${advance.toFixed(2)}</p>
+        <p><strong>Total Deductions:</strong> ${total.toFixed(2)}</p>
+        <p><strong>Net Pay:</strong> ${net.toFixed(2)}</p>
+        <p><strong>NSSF - Employer:</strong> ${nssfEmp.toFixed(2)}</p>
+        <p><strong>AHL - Employer:</strong> ${ahlEmp.toFixed(2)}</p>
+        <p><strong>NITA:</strong> ${nita.toFixed(2)}</p>
+      `);
+      win.print();
+      win.document.close();
+    });
+  });
+}
+
+function downloadPayrollPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(12);
+  doc.text("Consolidated Payroll Report", 70, 15);
+
+  const headers = ["Name", "Gross", "PAYE", "NSSF", "SHIF", "AHL", "Advance", "Total", "Net", "NSSF-Empl", "AHL-Empl", "NITA"];
+  let y = 25;
+
+  doc.setFont("helvetica", "bold");
+  headers.forEach((h, i) => {
+    doc.text(h, 10 + i * 15, y);
+  });
+
+  y += 6;
+  doc.setFont("helvetica", "normal");
+
+  document.querySelectorAll("#payrollBody tr").forEach(row => {
+    const cols = Array.from(row.querySelectorAll("td")).map(td => {
+      const input = td.querySelector("input");
+      return input ? input.value : td.textContent.trim();
+    });
+
+    cols.slice(0, 12).forEach((val, i) => {
+      doc.text(val, 10 + i * 15, y);
+    });
+
+    y += 6;
+    if (y > 270) {
+      doc.addPage();
+      y = 25;
+    }
+  });
+
+  doc.save("Consolidated_Payroll_Report.pdf");
+}
+
+window.onload = loadPayroll;
+</script>
+</body>
+</html>
+
+

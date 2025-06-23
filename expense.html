@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Expenses | School Office Management</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial; background: #f4f4f4; margin: 0; padding: 0; }
+    header { background: #0077cc; color: white; padding: 20px; text-align: center; }
+    nav { background: #f0f0f0; padding: 10px; text-align: center; }
+    nav a { margin: 0 10px; text-decoration: none; color: #0077cc; font-weight: bold; }
+    nav a:hover { text-decoration: underline; }
+
+    main { max-width: 1100px; margin: 30px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
+    button { margin-top: 10px; padding: 10px 15px; background: #0077cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #005fa3; }
+    h3 { margin-top: 40px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+    table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #0077cc; color: white; }
+    .total { font-weight: bold; text-align: right; margin-top: 5px; }
+    .tools { margin-top: 20px; border-top: 2px solid #ccc; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    canvas { margin-top: 30px; }
+    @media print {
+      .tools, form, header, nav, canvas { display: none; }
+      main { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Heriwadi Christian Schools Ltd</h1>
+  </header>
+
+  <nav>
+    <a href="index.html">Dashboard</a>
+    <a href="students.html">Students</a>
+    <a href="receipts.html">Receipts</a>
+    <a href="expense.html">Expenses</a>
+    <a href="assets.html">Assets</a>
+    <a href="staff.html">Staff</a>
+    <a href="payroll.html" style="text-decoration: underline;">Payroll</a>
+  </nav>
+
+  <main>
+    <form id="expenseForm">
+      <label>Description:</label>
+      <input type="text" id="description" required />
+      <label>Amount:</label>
+      <input type="number" id="amount" required />
+      <label>Category:</label>
+      <select id="category" required>
+        <option value="">-- Select Category --</option>
+        <option>Food</option><option>Stationary</option><option>Uniform Purchase</option>
+        <option>Salaries</option><option>Fuel & Gas</option><option>Security</option><option>Rent</option>
+        <option>NSSF</option><option>NHIF/CHA</option><option>Airtime</option><option>Electricity</option>
+        <option>Water</option><option>Internet</option><option>Insurance</option><option>Permit</option>
+        <option>Loan</option><option>Exhaust Services</option><option>Repairs and Maintenance</option>
+        <option>Purchase of Assets</option>
+      </select>
+      <label>Date:</label>
+      <input type="date" id="date" required />
+      <button type="submit">Add Expense</button>
+    </form>
+
+    <div class="tools">
+      <button onclick="renderCharts()">Show Charts</button>
+      <button onclick="window.print()">Print Report</button>
+      <button onclick="exportAllToExcel()">Export All</button>
+      <select id="categoryExport">
+        <option value="">-- Select Category to Export --</option>
+        <option>Food</option><option>Stationary</option><option>Uniform Purchase</option><option>Salaries</option>
+        <option>Fuel & Gas</option><option>Security</option><option>Rent</option><option>NSSF</option>
+        <option>NHIF/CHA</option><option>Airtime</option><option>Electricity</option><option>Water</option>
+        <option>Internet</option><option>Insurance</option><option>Permit</option><option>Loan</option>
+        <option>Exhaust Services</option><option>Repairs and Maintenance</option><option>Purchase of Assets</option>
+      </select>
+      <button onclick="exportCategoryToExcel()">Export Selected</button>
+      <button onclick="backupData()">Backup</button>
+      <input type="file" id="restoreFile" onchange="restoreData(event)" />
+    </div>
+
+    <div id="groupedExpenses"></div>
+
+    <h3>Charts and Monthly Summary</h3>
+    <canvas id="categoryChart" height="100"></canvas>
+    <canvas id="monthlyChart" height="100"></canvas>
+    <div id="monthlySummary"></div>
+  </main>
+<script>
+let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+
+function renderGroupedExpenses() {
+  const container = document.getElementById("groupedExpenses");
+  container.innerHTML = "";
+  const grouped = {};
+  let grandTotal = 0;
+
+  expenses.forEach(e => {
+    if (!grouped[e.category]) grouped[e.category] = [];
+    grouped[e.category].push(e);
+  });
+
+  for (let cat in grouped) {
+    let section = document.createElement("section");
+    section.innerHTML = `<h3>${cat}</h3>`;
+    let total = 0;
+    let table = document.createElement("table");
+    table.innerHTML = "<tr><th>Date</th><th>Description</th><th>Amount</th><th>Actions</th></tr>";
+
+    grouped[cat].forEach((e, i) => {
+      total += e.amount;
+      grandTotal += e.amount;
+      let row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${e.date}</td><td>${e.description}</td><td>${e.amount.toFixed(2)}</td>
+        <td>
+          <button onclick="editExpense(${expenses.indexOf(e)})">Edit</button>
+          <button onclick="deleteExpense(${expenses.indexOf(e)})">Delete</button>
+        </td>`;
+      table.appendChild(row);
+    });
+
+    section.appendChild(table);
+    section.innerHTML += `<div class="total">Total: KES ${total.toFixed(2)}</div>`;
+    container.appendChild(section);
+  }
+
+  container.innerHTML += `<div class="total">Grand Total: KES ${grandTotal.toFixed(2)}</div>`;
+}
+
+function editExpense(index) {
+  const e = expenses[index];
+  document.getElementById("description").value = e.description;
+  document.getElementById("amount").value = e.amount;
+  document.getElementById("category").value = e.category;
+  document.getElementById("date").value = e.date;
+  expenses.splice(index, 1);
+  renderGroupedExpenses();
+}
+
+function deleteExpense(index) {
+  if (confirm("Delete this expense?")) {
+    expenses.splice(index, 1);
+    localStorage.setItem("expenses", JSON.stringify(expenses));
+    renderGroupedExpenses();
+  }
+}
+
+document.getElementById("expenseForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  const newExp = {
+    description: document.getElementById("description").value,
+    amount: parseFloat(document.getElementById("amount").value),
+    category: document.getElementById("category").value,
+    date: document.getElementById("date").value
+  };
+  expenses.push(newExp);
+  localStorage.setItem("expenses", JSON.stringify(expenses));
+  this.reset();
+  renderGroupedExpenses();
+});
+
+function exportAllToExcel() {
+  let csv = "Date,Description,Category,Amount\\n";
+  expenses.forEach(e => {
+    csv += `${e.date},${e.description},${e.category},${e.amount}\\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "all_expenses.csv";
+  a.click();
+}
+
+function exportCategoryToExcel() {
+  const selectedCat = document.getElementById("categoryExport").value;
+  if (!selectedCat) {
+    alert("Select a category to export.");
+    return;
+  }
+  let csv = "Date,Description,Category,Amount\\n";
+  expenses.filter(e => e.category === selectedCat).forEach(e => {
+    csv += `${e.date},${e.description},${e.category},${e.amount}\\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `expenses_${selectedCat.replace(/\\s+/g, '_')}.csv`;
+  a.click();
+}
+
+function backupData() {
+  const blob = new Blob([JSON.stringify(expenses)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "expenses_backup.json";
+  a.click();
+}
+
+function restoreData(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      expenses = JSON.parse(e.target.result);
+      localStorage.setItem("expenses", JSON.stringify(expenses));
+      renderGroupedExpenses();
+    } catch {
+      alert("Invalid backup file.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function renderCharts() {
+  const ctx1 = document.getElementById('categoryChart').getContext('2d');
+  const ctx2 = document.getElementById('monthlyChart').getContext('2d');
+  const summaryDiv = document.getElementById("monthlySummary");
+  const categoryTotals = {};
+  const monthlyTotals = {};
+
+  expenses.forEach(e => {
+    categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
+    const month = e.date.slice(0, 7);
+    monthlyTotals[month] = (monthlyTotals[month] || 0) + e.amount;
+  });
+
+  const catLabels = Object.keys(categoryTotals);
+  const catValues = Object.values(categoryTotals);
+  const monthLabels = Object.keys(monthlyTotals).sort();
+  const monthValues = monthLabels.map(m => monthlyTotals[m]);
+
+  new Chart(ctx1, {
+    type: 'pie',
+    data: {
+      labels: catLabels,
+      datasets: [{
+        label: 'Expenses by Category',
+        data: catValues,
+        backgroundColor: catLabels.map((_, i) => `hsl(${i * 30}, 70%, 60%)`)
+      }]
+    }
+  });
+
+  new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: monthLabels,
+      datasets: [{
+        label: 'Monthly Expenses',
+        data: monthValues,
+        backgroundColor: 'rgba(0, 119, 204, 0.6)'
+      }]
+    }
+  });
+
+  let summaryHTML = "<h3>Monthly Summary</h3><table><tr><th>Month</th><th>Total (KES)</th></tr>";
+  monthLabels.forEach(m => {
+    summaryHTML += `<tr><td>${m}</td><td>${monthlyTotals[m].toFixed(2)}</td></tr>`;
+  });
+  summaryHTML += "</table>";
+  summaryDiv.innerHTML = summaryHTML;
+}
+
+renderGroupedExpenses();
+</script>
+</body>
+</html>
+

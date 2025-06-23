@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Management</title>
+  <style>
+    body { font-family: Arial; background: #f4f4f4; margin: 0; padding: 0; }
+    header { background: #0077cc; color: white; padding: 20px; text-align: center; }
+    nav { background: #f0f0f0; padding: 10px; text-align: center; }
+    nav a { margin: 0 10px; text-decoration: none; color: #0077cc; font-weight: bold; }
+    nav a:hover { text-decoration: underline; }
+    main { max-width: 1100px; margin: 30px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
+    button { margin-top: 10px; padding: 10px 15px; background: #0077cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #005fa3; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #0077cc; color: white; }
+    .tools { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    #searchInput { width: 200px; padding: 5px; }
+    @media print {
+      .tools, form, nav, header { display: none; }
+      main { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>HCS Staff Management</h1>
+</header>
+
+<nav>
+  <a href="index.html">Dashboard</a>
+  <a href="students.html">Students</a>
+  <a href="receipts.html">Receipts</a>
+  <a href="expense.html">Expenses</a>
+  <a href="assets.html">Assets</a>
+  <a href="staff.html" style="text-decoration: underline;">Staff</a>
+  <a href="payroll.html">Payroll</a>
+</nav>
+
+<main>
+  <form id="staffForm">
+    <label>Full Name</label>
+    <input type="text" id="fullName" required>
+    
+    <label>Staff ID</label>
+    <input type="text" id="staffId" required>
+
+    <label>Gender</label>
+    <select id="gender" required>
+      <option value="">-- Select --</option>
+      <option>Male</option>
+      <option>Female</option>
+    </select>
+
+    <label>Role / Department</label>
+    <input type="text" id="role" required>
+
+    <label>Date of Employment</label>
+    <input type="date" id="employmentDate" required>
+
+    <label>Phone Number</label>
+    <input type="text" id="phone">
+
+    <label>Email</label>
+    <input type="email" id="email">
+
+    <label>Monthly Salary (KES)</label>
+    <input type="number" id="salary" required>
+
+    <label>Performance Score (1–10)</label>
+    <input type="number" id="performance" min="1" max="10" required>
+
+    <label>Leave Days Taken</label>
+    <input type="number" id="leaveDays" min="0" required>
+
+    <label>Attendance (Days Present)</label>
+    <input type="number" id="attendance" min="0" required>
+
+    <label>Bonuses (KES)</label>
+    <input type="number" id="bonus" min="0" value="0">
+
+    <label>Salary Advance Given (KES)</label>
+    <input type="number" id="advance" min="0" value="0">
+
+    <button type="submit">Add Staff</button>
+  </form>
+
+  <div class="tools">
+    <input type="text" id="searchInput" placeholder="Search by name or role" oninput="filterStaff()" />
+    <button onclick="exportToExcel()">Export to Excel</button>
+    <button onclick="window.print()">Print</button>
+    <button onclick="backupStaff()">Backup</button>
+    <input type="file" id="restoreFile" onchange="restoreStaff(event)" />
+    <button onclick="generateMonthlyReport()">Salary Report</button>
+  </div>
+
+  <table id="staffTable">
+    <thead>
+      <tr>
+        <th>Name</th><th>Role</th><th>Salary</th><th>Leave</th><th>Attendance</th>
+        <th>Bonus</th><th>Advance</th><th>Performance</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="monthlyReport"></div>
+</main>
+
+<script>
+let staffList = JSON.parse(localStorage.getItem("staffList")) || [];
+
+function getPerformanceGrade(score) {
+  if (score >= 9) return "Excellent";
+  if (score >= 7) return "Good";
+  if (score >= 5) return "Fair";
+  return "Needs Improvement";
+}
+
+function updatePayrollData() {
+  const payrollData = staffList.map(s => ({
+    name: s.fullName,
+    grossPay: s.salary,
+    advance: s.advance
+  }));
+  localStorage.setItem("staffData", JSON.stringify(payrollData));
+}
+
+function renderStaff(filtered = staffList) {
+  const tbody = document.querySelector("#staffTable tbody");
+  tbody.innerHTML = "";
+  filtered.forEach((s, i) => {
+    const grade = getPerformanceGrade(s.performance);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${s.fullName}</td>
+      <td>${s.role}</td>
+      <td>${s.salary}</td>
+      <td>${s.leaveDays}</td>
+      <td>${s.attendance}</td>
+      <td>${s.bonus}</td>
+      <td>${s.advance}</td>
+      <td>${s.performance}/10 (${grade})</td>
+      <td>
+        <button onclick="editStaff(${i})">Edit</button>
+        <button onclick="deleteStaff(${i})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+  updatePayrollData();
+}
+
+document.getElementById("staffForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const staff = {
+    fullName: document.getElementById("fullName").value,
+    staffId: document.getElementById("staffId").value,
+    gender: document.getElementById("gender").value,
+    role: document.getElementById("role").value,
+    employmentDate: document.getElementById("employmentDate").value,
+    phone: document.getElementById("phone").value,
+    email: document.getElementById("email").value,
+    salary: parseFloat(document.getElementById("salary").value),
+    performance: parseInt(document.getElementById("performance").value),
+    leaveDays: parseInt(document.getElementById("leaveDays").value),
+    attendance: parseInt(document.getElementById("attendance").value),
+    bonus: parseFloat(document.getElementById("bonus").value),
+    advance: parseFloat(document.getElementById("advance").value)
+  };
+  staffList.push(staff);
+  localStorage.setItem("staffList", JSON.stringify(staffList));
+  this.reset();
+  renderStaff();
+});
+
+function editStaff(index) {
+  const s = staffList[index];
+  document.getElementById("fullName").value = s.fullName;
+  document.getElementById("staffId").value = s.staffId;
+  document.getElementById("gender").value = s.gender;
+  document.getElementById("role").value = s.role;
+  document.getElementById("employmentDate").value = s.employmentDate;
+  document.getElementById("phone").value = s.phone;
+  document.getElementById("email").value = s.email;
+  document.getElementById("salary").value = s.salary;
+  document.getElementById("performance").value = s.performance;
+  document.getElementById("leaveDays").value = s.leaveDays;
+  document.getElementById("attendance").value = s.attendance;
+  document.getElementById("bonus").value = s.bonus;
+  document.getElementById("advance").value = s.advance;
+  staffList.splice(index, 1);
+  localStorage.setItem("staffList", JSON.stringify(staffList));
+  renderStaff();
+}
+
+function deleteStaff(index) {
+  if (confirm("Delete this staff member?")) {
+    staffList.splice(index, 1);
+    localStorage.setItem("staffList", JSON.stringify(staffList));
+    renderStaff();
+  }
+}
+
+function filterStaff() {
+  const query = document.getElementById("searchInput").value.toLowerCase();
+  const filtered = staffList.filter(s =>
+    s.fullName.toLowerCase().includes(query) ||
+    s.role.toLowerCase().includes(query)
+  );
+  renderStaff(filtered);
+}
+
+function exportToExcel() {
+  let csv = "Name,Role,Salary,Leave,Attendance,Bonus,Advance,Performance\\n";
+  staffList.forEach(s => {
+    csv += `${s.fullName},${s.role},${s.salary},${s.leaveDays},${s.attendance},${s.bonus},${s.advance},${s.performance}\\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "staff_records.csv";
+  a.click();
+}
+
+function backupStaff() {
+  const blob = new Blob([JSON.stringify(staffList)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "staff_backup.json";
+  a.click();
+}
+
+function restoreStaff(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (Array.isArray(data)) {
+        staffList = data;
+        localStorage.setItem("staffList", JSON.stringify(staffList));
+        renderStaff();
+      } else {
+        alert("Invalid file format.");
+      }
+    } catch {
+      alert("Failed to restore backup.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function generateMonthlyReport() {
+  let totalSalary = 0;
+  let totalBonus = 0;
+  staffList.forEach(s => {
+    totalSalary += s.salary;
+    totalBonus += s.bonus;
+  });
+  document.getElementById("monthlyReport").innerHTML = `
+    <h3>Monthly Summary</h3>
+    <p><strong>Total Salary Payout:</strong> KES ${totalSalary.toLocaleString()}</p>
+    <p><strong>Total Bonuses Paid:</strong> KES ${totalBonus.toLocaleString()}</p>
+  `;
+}
+
+renderStaff();
+</script>
+</body>
+</html>

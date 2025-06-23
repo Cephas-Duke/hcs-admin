@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Receipts | School Office Management</title>
+  <style>
+    body { font-family: Arial; background: #f5f5f5; margin: 0; padding: 0; }
+    header { background: #0077cc; color: white; padding: 20px; text-align: center; }
+    nav ul { display: flex; justify-content: center; list-style: none; background: #005fa3; padding: 10px; margin: 0; }
+    nav ul li { margin: 0 15px; }
+    nav ul li a { color: white; text-decoration: none; font-weight: bold; }
+    main { padding: 20px; max-width: 700px; margin: auto; }
+    form { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
+    button { margin-top: 15px; padding: 10px 15px; background: #0077cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    footer { background: #eee; text-align: center; padding: 15px; margin-top: 30px; }
+    .fee-details { margin-top: 20px; }
+    .fee-details input[readonly] { background: #f0f0f0; }
+    #receiptModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+    #receiptModal .modal-content { background: #fff; padding: 20px; border-radius: 10px; max-width: 600px; text-align: center; position: relative; }
+    #receiptModal .close { position: absolute; top: 10px; right: 15px; font-weight: bold; cursor: pointer; }
+    #studentSearch { margin-bottom: 10px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <header>
+     <img src="photos/school-logo.jpg" alt="School Logo" class="logo">
+    <h1>School Office Management System</h1>
+    <nav>
+      <ul>
+        <li><a href="index.html">Dashboard</a></li>
+        <li><a href="receipts.html">Receipts</a></li>
+        <li><a href="expense.html">Expenses</a></li>
+        <li><a href="assets.html">Assets</a></li>
+        <li><a href="staff.html">Staff</a></li>
+        <li><a href="students.html">Students</a></li>
+        <a href="payroll.html" style="text-decoration: underline;">Payroll</a>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h2>Issue Fee Receipt</h2>
+    <form id="receiptForm">
+      <label for="studentSearch">Search Student:</label>
+      <input type="text" id="studentSearch" placeholder="Type to search..." />
+      <label for="student">Select Student:</label>
+      <select id="student" required>
+        <option value="">-- Select --</option>
+      </select>
+
+      <div id="feeDetails" class="fee-details" style="display:none;">
+        <label>Class:</label><input type="text" id="studentClass" readonly />
+        <label>Tuition:</label><input type="number" id="tuition" readonly />
+        <label>Adm Fee:</label><input type="number" id="adm" readonly />
+        <label>Book Fund:</label><input type="number" id="books" readonly />
+        <label>Stationery:</label><input type="number" id="stationery" readonly />
+        <label>Uniform:</label><input type="number" id="uniform" readonly />
+        <label>Lunch:</label><input type="number" id="lunch" readonly />
+        <label>Transport:</label><input type="number" id="transport" readonly />
+        <label>Total Fee:</label><input type="number" id="total" readonly />
+        <label>Amount Paid Before:</label><input type="number" id="paidBefore" readonly />
+        <label>Balance Before:</label><input type="number" id="balanceBefore" readonly />
+        <label>New Payment:</label><input type="number" id="newPayment" min="0" required />
+        <button type="submit">Generate Receipt & Update</button>
+      </div>
+    </form>
+
+    <div id="receiptModal">
+      <div class="modal-content">
+        <span class="close" onclick="closeModal()">×</span>
+        <h3>Payment Receipt</h3>
+        <div id="receiptContent"></div>
+        <button onclick="downloadPDF()">Download PDF</button>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>© 2025 Your School Name</p>
+  </footer>
+
+  <script>
+    const { jsPDF } = window.jspdf;
+    const studentDropdown = document.getElementById("student");
+    const studentSearch = document.getElementById("studentSearch");
+    const feeSection = document.getElementById("feeDetails");
+    const receiptModal = document.getElementById("receiptModal");
+    const receiptContent = document.getElementById("receiptContent");
+    const students = JSON.parse(localStorage.getItem("students")) || [];
+
+    // ✅ NEW: Track selected student index
+    let selectedStudentIndex = null;
+
+    if (students.length === 0) {
+      alert("No student data found. Please add students in students.html.");
+    } else {
+      students.forEach((s, i) => {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `${s.name} (${s.class})`;
+        studentDropdown.appendChild(option);
+      });
+    }
+
+    studentSearch.addEventListener("input", function () {
+      const searchTerm = this.value.toLowerCase();
+      studentDropdown.innerHTML = '<option value="">-- Select --</option>';
+      const filteredStudents = students.filter(s =>
+        `${s.name} (${s.class})`.toLowerCase().includes(searchTerm)
+      );
+      filteredStudents.forEach((s, i) => {
+        const option = document.createElement("option");
+        option.value = students.findIndex(std => std.name === s.name && std.class === s.class);
+        option.textContent = `${s.name} (${s.class})`;
+        studentDropdown.appendChild(option);
+      });
+    });
+
+    studentDropdown.addEventListener("change", function () {
+      selectedStudentIndex = this.value;  // ✅ Track selection
+      const student = students[selectedStudentIndex];
+      if (!student) {
+        feeSection.style.display = "none";
+        return;
+      }
+      feeSection.style.display = "block";
+      document.getElementById("studentClass").value = student.class;
+      document.getElementById("tuition").value = student.tuition.toFixed(2);
+      document.getElementById("adm").value = student.adm.toFixed(2);
+      document.getElementById("books").value = student.books.toFixed(2);
+      document.getElementById("stationery").value = student.stationery.toFixed(2);
+      document.getElementById("uniform").value = student.uniform.toFixed(2);
+      document.getElementById("lunch").value = student.lunch.toFixed(2);
+      document.getElementById("transport").value = student.transport.toFixed(2);
+      document.getElementById("total").value = student.total.toFixed(2);
+      document.getElementById("paidBefore").value = student.paid.toFixed(2);
+      document.getElementById("balanceBefore").value = student.balance.toFixed(2);
+      document.getElementById("newPayment").value = "";
+    });
+
+    document.getElementById("receiptForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const index = selectedStudentIndex;
+      if (index === null) return alert("Please select a student.");
+      const student = students[index];
+      const newPayment = parseFloat(document.getElementById("newPayment").value) || 0;
+
+      if (newPayment > student.balance || newPayment < 0) {
+        return alert("Invalid payment amount. Ensure it does not exceed the balance or is not negative.");
+      }
+
+      student.paid += newPayment;
+      student.balance = student.total - student.paid;
+      students[index] = student;
+      localStorage.setItem("students", JSON.stringify(students));
+
+      receiptContent.innerHTML = `
+        <p><strong>Date:</strong> ${new Date().toLocaleString("en-US", { timeZone: "Africa/Nairobi" })}</p>
+        <p><strong>Student:</strong> ${student.name}</p>
+        <p><strong>Class:</strong> ${student.class}</p>
+        <p><strong>Tuition:</strong> KES ${student.tuition.toFixed(2)}</p>
+        <p><strong>Adm Fee:</strong> KES ${student.adm.toFixed(2)}</p>
+        <p><strong>Book Fund:</strong> KES ${student.books.toFixed(2)}</p>
+        <p><strong>Stationery:</strong> KES ${student.stationery.toFixed(2)}</p>
+        <p><strong>Uniform:</strong> KES ${student.uniform.toFixed(2)}</p>
+        <p><strong>Lunch:</strong> KES ${student.lunch.toFixed(2)}</p>
+        <p><strong>Transport:</strong> KES ${student.transport.toFixed(2)}</p>
+        <p><strong>Total Fee:</strong> KES ${student.total.toFixed(2)}</p>
+        <p><strong>Amount Paid Before:</strong> KES ${(student.paid - newPayment).toFixed(2)}</p>
+        <p><strong>New Payment:</strong> KES ${newPayment.toFixed(2)}</p>
+        <p><strong>Total Paid:</strong> KES ${student.paid.toFixed(2)}</p>
+        <p><strong>Balance:</strong> KES ${student.balance.toFixed(2)}</p>
+      `;
+      receiptModal.style.display = "flex";
+      window.latestPayment = newPayment;
+
+      this.reset();
+      feeSection.style.display = "none";
+    });
+
+    function closeModal() {
+      receiptModal.style.display = "none";
+    }
+
+    function downloadPDF() {
+      const student = students[selectedStudentIndex];  // ✅ Use stored index
+      const newPayment = window.latestPayment || 0;
+
+      if (!student) {
+        alert("Student data not found for receipt.");
+        return;
+      }
+
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text("School Office Management System", 105, 20, { align: "center" });
+      doc.setFontSize(12);
+      doc.text("Payment Receipt", 105, 30, { align: "center" });
+      doc.text(`Date: ${new Date().toLocaleString("en-US", { timeZone: "Africa/Nairobi" })}`, 105, 40, { align: "center" });
+
+      const lines = [
+        `Student: ${student.name}`,
+        `Class: ${student.class}`,
+        `Tuition: KES ${student.tuition.toFixed(2)}`,
+        `Adm Fee: KES ${student.adm.toFixed(2)}`,
+        `Book Fund: KES ${student.books.toFixed(2)}`,
+        `Stationery: KES ${student.stationery.toFixed(2)}`,
+        `Uniform: KES ${student.uniform.toFixed(2)}`,
+        `Lunch: KES ${student.lunch.toFixed(2)}`,
+        `Transport: KES ${student.transport.toFixed(2)}`,
+        `Total Fee: KES ${student.total.toFixed(2)}`,
+        `Amount Paid Before: KES ${(student.paid - newPayment).toFixed(2)}`,
+        `New Payment: KES ${newPayment.toFixed(2)}`,
+        `Total Paid: KES ${student.paid.toFixed(2)}`,
+        `Balance: KES ${student.balance.toFixed(2)}`
+      ];
+
+      let y = 50;
+      lines.forEach(line => {
+        doc.text(line, 20, y);
+        y += 10;
+      });
+
+      const fileName = `receipt_${student.name.replace(/\s+/g, '_')}_${new Date().toISOString().replace(/[:.]/g, '-')}.pdf`;
+      doc.save(fileName);
+    }
+  </script>
+</body>
+</html>
