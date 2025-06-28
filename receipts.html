@@ -204,7 +204,7 @@
         localStorage.setItem("receipts", JSON.stringify(receipts));
 
         // Send SMS using the server endpoint
-        const smsResponse = await fetch("/send-sms", {
+        const smsResponse = await fetch("https://hcs-admin.onrender.com", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
